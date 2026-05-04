@@ -4,7 +4,7 @@ import type { Config } from "./config";
 import { logger } from "./logger";
 import { dollars, type Dollars } from "./units";
 
-export interface BillCategory {
+interface BillCategory {
   name: string;
   amountDollars: Dollars;
 }

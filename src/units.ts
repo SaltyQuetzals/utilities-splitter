@@ -8,15 +8,7 @@ export function dollars(amount: number): Dollars {
   return amount as Dollars;
 }
 
-export function milliunits(amount: number): Milliunits {
-  return amount as Milliunits;
-}
-
 /** YNAB convention: outflow is represented as negative milliunits. */
 export function dollarsToMilliunitsOutflow(amountDollars: Dollars): Milliunits {
   return Math.round(amountDollars * -1000) as Milliunits;
-}
-
-export function milliunitsToAbsDollars(amountMilliunits: Milliunits): Dollars {
-  return (Math.abs(amountMilliunits) / 1000) as Dollars;
 }
