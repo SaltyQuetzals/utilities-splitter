@@ -1,10 +1,7 @@
-import { OpenRouter } from "@openrouter/sdk";
 import type { Config } from "./config";
 import { logger } from "./logger";
 import type { BillData } from "./ocr";
 import type { Dollars } from "./units";
-
-const TELEGRAM_MESSAGE_MODEL = "ibm-granite/granite-4.0-h-micro";
 
 interface TelegramSendDocumentResponse {
   ok: boolean;
