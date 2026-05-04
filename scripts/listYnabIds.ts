@@ -81,7 +81,7 @@ async function main(): Promise<void> {
       name: budget.name,
       id: budget.id,
       lastModified: budget.last_modified_on ?? "-",
-    }))
+    })),
   );
 
   const selectedBudgets = options.budgetId
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
 
     const accountsResponse = await api.accounts.getAccounts(budget.id);
     const accounts = accountsResponse.data.accounts.filter(
-      (account) => options.includeClosed || !account.closed
+      (account) => options.includeClosed || !account.closed,
     );
 
     console.log("\nAccounts");
@@ -108,33 +108,39 @@ async function main(): Promise<void> {
         id: account.id,
         type: account.type,
         onBudget: account.on_budget,
-        status: formatStatus([
-          account.closed ? "closed" : "",
-          account.deleted ? "deleted" : "",
-        ].filter(Boolean)),
-      }))
+        status: formatStatus(
+          [
+            account.closed ? "closed" : "",
+            account.deleted ? "deleted" : "",
+          ].filter(Boolean),
+        ),
+      })),
     );
 
     const categoriesResponse = await api.categories.getCategories(budget.id);
     const categoryRows = categoriesResponse.data.category_groups
-      .filter((group) => options.includeHidden || (!group.hidden && !group.deleted))
+      .filter(
+        (group) => options.includeHidden || (!group.hidden && !group.deleted),
+      )
       .flatMap((group) =>
         group.categories
           .filter(
             (category) =>
-              options.includeHidden || (!category.hidden && !category.deleted)
+              options.includeHidden || (!category.hidden && !category.deleted),
           )
           .map((category) => ({
             group: group.name,
             name: category.name,
             id: category.id,
-            status: formatStatus([
-              group.hidden ? "hidden group" : "",
-              group.deleted ? "deleted group" : "",
-              category.hidden ? "hidden" : "",
-              category.deleted ? "deleted" : "",
-            ].filter(Boolean)),
-          }))
+            status: formatStatus(
+              [
+                group.hidden ? "hidden group" : "",
+                group.deleted ? "deleted group" : "",
+                category.hidden ? "hidden" : "",
+                category.deleted ? "deleted" : "",
+              ].filter(Boolean),
+            ),
+          })),
       );
 
     console.log("\nCategories");

@@ -223,7 +223,7 @@ export async function waitForSplitApproval(
 
 export async function sendSplitCompletedNotification(
   config: Config,
-  bill: BillData,
+  _bill: BillData,
   roommateShareDollars: Dollars,
   transactionId: string,
   replyToMessageId: number,

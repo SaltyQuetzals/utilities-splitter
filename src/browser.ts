@@ -1,8 +1,8 @@
-import { chromium } from "playwright";
-import { mkdtemp, readFile, rm } from "fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
-import { join } from "path";
-import { tmpdir } from "os";
+import { chromium } from "playwright";
 import type { Config } from "./config";
 import { logger } from "./logger";
 
@@ -21,7 +21,9 @@ async function extractFirstPdfPage(pdfBuffer: Buffer): Promise<Buffer> {
   return Buffer.from(await firstPagePdf.save());
 }
 
-export async function downloadBillFirstPagePdf(config: Config): Promise<Buffer> {
+export async function downloadBillFirstPagePdf(
+  config: Config,
+): Promise<Buffer> {
   browserLogger.info("Launching browser");
   const browser = await chromium.launch({ headless: true });
   const tempDir = await mkdtemp(join(tmpdir(), "utility-bill-"));
@@ -64,7 +66,7 @@ export async function downloadBillFirstPagePdf(config: Config): Promise<Buffer> 
     await context.close();
     browserLogger.info(
       { pdfBytes: firstPagePdf.length },
-      "Extracted first page from bill PDF"
+      "Extracted first page from bill PDF",
     );
     return firstPagePdf;
   } finally {

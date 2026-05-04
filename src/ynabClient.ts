@@ -4,8 +4,8 @@ import type { Config } from "./config";
 import { logger as rootLogger } from "./logger";
 import type { BillData } from "./ocr";
 import {
-  dollarsToMilliunitsOutflow,
   type Dollars,
+  dollarsToMilliunitsOutflow,
   type Milliunits,
 } from "./units";
 
@@ -22,15 +22,16 @@ export class YNABClient {
   }
 
   async findScheduledTransaction(
-    memoTag: string
+    memoTag: string,
   ): Promise<ynab.ScheduledTransactionDetail | null> {
     this.logger.info({ memoTag }, "Searching scheduled transactions");
-    const response = await this.api.scheduledTransactions.getScheduledTransactions(
-      this.budgetId
-    );
+    const response =
+      await this.api.scheduledTransactions.getScheduledTransactions(
+        this.budgetId,
+      );
     const transaction =
       response.data.scheduled_transactions.find((tx) =>
-        tx.memo?.includes(memoTag)
+        tx.memo?.includes(memoTag),
       ) ?? null;
     this.logger.info(
       {
@@ -38,30 +39,28 @@ export class YNABClient {
         found: transaction != null,
         scheduledTransactionId: transaction?.id,
       },
-      "Scheduled transaction search complete"
+      "Scheduled transaction search complete",
     );
     return transaction;
   }
 
   async findRegularTransaction(
     memoTag: string,
-    dueDateStr: string
+    dueDateStr: string,
   ): Promise<ynab.TransactionDetail | null> {
     const windowStartStr = addDays(dueDateStr, -7);
     const windowEndStr = addDays(dueDateStr, 7);
     this.logger.info(
       { memoTag, windowStartStr, windowEndStr },
-      "Searching regular transactions"
+      "Searching regular transactions",
     );
     const response = await this.api.transactions.getTransactions(
       this.budgetId,
-      windowStartStr
+      windowStartStr,
     );
     const transaction =
       response.data.transactions.find(
-        (tx) =>
-          tx.memo?.includes(memoTag) &&
-          tx.date <= windowEndStr
+        (tx) => tx.memo?.includes(memoTag) && tx.date <= windowEndStr,
       ) ?? null;
     this.logger.info(
       {
@@ -71,7 +70,7 @@ export class YNABClient {
         found: transaction != null,
         transactionId: transaction?.id,
       },
-      "Regular transaction search complete"
+      "Regular transaction search complete",
     );
     return transaction;
   }
@@ -79,12 +78,13 @@ export class YNABClient {
   async createScheduledTransaction(
     dueDateStr: string,
     totalAmountDollars: Dollars,
-    memo: string
+    memo: string,
   ): Promise<void> {
-    const totalAmountMilliunits = dollarsToMilliunitsOutflow(totalAmountDollars);
+    const totalAmountMilliunits =
+      dollarsToMilliunitsOutflow(totalAmountDollars);
     this.logger.info(
       { dueDateStr, totalAmountDollars, totalAmountMilliunits, memo },
-      "Creating scheduled transaction"
+      "Creating scheduled transaction",
     );
     await this.api.scheduledTransactions.createScheduledTransaction(
       this.budgetId,
@@ -96,7 +96,7 @@ export class YNABClient {
           memo,
           frequency: ynab.ScheduledTransactionFrequency.Never,
         },
-      }
+      },
     );
     this.logger.info({ dueDateStr, memo }, "Scheduled transaction created");
   }
@@ -104,15 +104,15 @@ export class YNABClient {
   async splitTransaction(
     transactionId: string,
     bill: BillData,
-    config: Config
+    config: Config,
   ): Promise<void> {
     const totalAmountMilliunits = dollarsToMilliunitsOutflow(
-      bill.totalAmountDollars
+      bill.totalAmountDollars,
     );
     const subtransactions = buildSubtransactions(
       bill,
       config,
-      totalAmountMilliunits
+      totalAmountMilliunits,
     );
     this.logger.info(
       {
@@ -121,13 +121,17 @@ export class YNABClient {
         totalAmountMilliunits,
         subtransactionCount: subtransactions.length,
       },
-      "Splitting transaction"
+      "Splitting transaction",
     );
-    await this.api.transactions.updateTransaction(this.budgetId, transactionId, {
-      transaction: {
-        subtransactions,
+    await this.api.transactions.updateTransaction(
+      this.budgetId,
+      transactionId,
+      {
+        transaction: {
+          subtransactions,
+        },
       },
-    });
+    );
     this.logger.info({ transactionId }, "Transaction split complete");
   }
 
@@ -143,14 +147,21 @@ function addDays(dateStr: string, days: number): string {
 function buildSubtransactions(
   bill: BillData,
   config: Config,
-  totalAmountMilliunits: Milliunits
+  totalAmountMilliunits: Milliunits,
 ): ynab.SaveSubTransaction[] {
-  const myHalves: ynab.SaveSubTransaction[] = bill.categories.map((category) => ({
-    amount: dollarsToMilliunitsOutflow((category.amountDollars / 2) as Dollars),
-    category_id: config.categoryMappings[category.name.toLowerCase()] ?? null,
-  }));
+  const myHalves: ynab.SaveSubTransaction[] = bill.categories.map(
+    (category) => ({
+      amount: dollarsToMilliunitsOutflow(
+        (category.amountDollars / 2) as Dollars,
+      ),
+      category_id: config.categoryMappings[category.name.toLowerCase()] ?? null,
+    }),
+  );
 
-  const myHalfSum = myHalves.reduce((sum, s) => sum + s.amount, 0) as Milliunits;
+  const myHalfSum = myHalves.reduce(
+    (sum, s) => sum + s.amount,
+    0,
+  ) as Milliunits;
 
   return [
     ...myHalves,

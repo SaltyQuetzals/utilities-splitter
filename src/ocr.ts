@@ -2,7 +2,7 @@ import { OpenRouter } from "@openrouter/sdk";
 import { z } from "zod";
 import type { Config } from "./config";
 import { logger } from "./logger";
-import { dollars, type Dollars } from "./units";
+import { type Dollars, dollars } from "./units";
 
 interface BillCategory {
   name: string;
@@ -32,7 +32,7 @@ function createOcrResponseSchema(config: Config) {
 
   return z.strictObject({
     bill_date: dateSchema.describe(
-      "Bill issue date in YYYY-MM-DD format. This identifies the bill."
+      "Bill issue date in YYYY-MM-DD format. This identifies the bill.",
     ),
     due_date: dateSchema.describe("Payment due date in YYYY-MM-DD format."),
     total_amount: z
@@ -43,15 +43,15 @@ function createOcrResponseSchema(config: Config) {
       .array(
         z.strictObject({
           name: categoryNameSchema.describe(
-            "Bill category name. Must exactly match one configured category mapping."
+            "Bill category name. Must exactly match one configured category mapping.",
           ),
           amount: z
             .number()
             .nonnegative()
             .describe(
-              "Category charge amount in dollars, without a currency symbol."
+              "Category charge amount in dollars, without a currency symbol.",
             ),
-        })
+        }),
       )
       .min(1)
       .describe("Itemized bill categories that add up to the total amount."),
@@ -75,7 +75,7 @@ Return only valid JSON. Do not include any explanation or markdown.`;
 
 export async function extractBillData(
   billPdfBuffer: Buffer,
-  config: Config
+  config: Config,
 ): Promise<BillData> {
   const ocrLogger = logger.child({
     module: "ocr",
@@ -134,7 +134,7 @@ export async function extractBillData(
   const validation = ocrResponseSchema.safeParse(parsed);
   if (!validation.success) {
     throw new Error(
-      `Unexpected OCR response shape: ${z.prettifyError(validation.error)}`
+      `Unexpected OCR response shape: ${z.prettifyError(validation.error)}`,
     );
   }
   const billData = validation.data;
@@ -146,7 +146,7 @@ export async function extractBillData(
       totalAmountDollars: billData.total_amount,
       categoryCount: billData.categories.length,
     },
-    "OpenRouter OCR response parsed"
+    "OpenRouter OCR response parsed",
   );
 
   return {

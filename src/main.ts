@@ -1,11 +1,16 @@
 import { Temporal } from "@js-temporal/polyfill";
-import { loadConfig } from "./config";
 import { downloadBillFirstPagePdf } from "./browser";
-import { extractBillData } from "./ocr";
-import { YNABClient } from "./ynabClient";
-import { sendBillApprovalRequest, waitForSplitApproval, sendErrorNotification, sendSplitCompletedNotification } from "./telegram";
+import { loadConfig } from "./config";
 import { logger } from "./logger";
+import { extractBillData } from "./ocr";
+import {
+  sendBillApprovalRequest,
+  sendErrorNotification,
+  sendSplitCompletedNotification,
+  waitForSplitApproval,
+} from "./telegram";
 import type { Dollars } from "./units";
+import { YNABClient } from "./ynabClient";
 
 async function main(): Promise<void> {
   logger.info("Starting utility bill workflow");
@@ -37,7 +42,7 @@ async function main(): Promise<void> {
         amountDollars: category.amountDollars,
       })),
     },
-    "Extracted bill data"
+    "Extracted bill data",
   );
 
   const [regularTx, scheduledTx] = await Promise.all([
@@ -48,7 +53,7 @@ async function main(): Promise<void> {
   if (regularTx) {
     workflowLogger.info(
       { transactionId: regularTx.id },
-      "Found regular transaction"
+      "Found regular transaction",
     );
     if (ynabClient.isAlreadySplit(regularTx)) {
       // Already processed on a previous run — no duplicate split or notification.
@@ -57,13 +62,25 @@ async function main(): Promise<void> {
     }
     // Step 8: Bill entered in YNAB for the first time — notify first, then split on approval.
     const roommateShareDollars = (bill.totalAmountDollars / 2) as Dollars;
-    const messageId = await sendBillApprovalRequest(config, bill, roommateShareDollars, billPdfBuffer, regularTx.id);
+    const messageId = await sendBillApprovalRequest(
+      config,
+      bill,
+      roommateShareDollars,
+      billPdfBuffer,
+      regularTx.id,
+    );
     await waitForSplitApproval(config, regularTx.id, messageId);
     await ynabClient.splitTransaction(regularTx.id, bill, config);
-    await sendSplitCompletedNotification(config, bill, roommateShareDollars, regularTx.id, messageId);
+    await sendSplitCompletedNotification(
+      config,
+      bill,
+      roommateShareDollars,
+      regularTx.id,
+      messageId,
+    );
     workflowLogger.info(
       { transactionId: regularTx.id, roommateShareDollars },
-      "Bill split approved and completed"
+      "Bill split approved and completed",
     );
     return;
   }
@@ -71,7 +88,7 @@ async function main(): Promise<void> {
   if (scheduledTx) {
     workflowLogger.info(
       { scheduledTransactionId: scheduledTx.id },
-      "Found scheduled transaction"
+      "Found scheduled transaction",
     );
     if (bill.dueDate > todayStr) {
       // Step 7: Future bill already scheduled — nothing to do.
@@ -88,12 +105,12 @@ async function main(): Promise<void> {
     await ynabClient.createScheduledTransaction(
       bill.dueDate,
       bill.totalAmountDollars,
-      memoTag
+      memoTag,
     );
     workflowLogger.info("Created scheduled transaction");
   } else {
     workflowLogger.warn(
-      "No transaction found and bill due date has already passed"
+      "No transaction found and bill due date has already passed",
     );
   }
 }
@@ -104,7 +121,10 @@ main().catch(async (err) => {
     const config = loadConfig();
     await sendErrorNotification(config, err);
   } catch (notifyErr) {
-    logger.error({ err: notifyErr }, "Failed to send Telegram error notification");
+    logger.error(
+      { err: notifyErr },
+      "Failed to send Telegram error notification",
+    );
   }
   process.exit(1);
 });

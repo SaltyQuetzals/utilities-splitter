@@ -34,7 +34,10 @@ export function loadConfig(): Config {
     telegramBotToken: requireEnv("TELEGRAM_BOT_TOKEN"),
     telegramChatId: requireEnv("TELEGRAM_CHAT_ID"),
     categoryMappings: Object.fromEntries(
-      Object.entries(appConfig.categoryMappings).map(([k, v]) => [k.toLowerCase(), v])
+      Object.entries(appConfig.categoryMappings).map(([k, v]) => [
+        k.toLowerCase(),
+        v,
+      ]),
     ),
   };
 }

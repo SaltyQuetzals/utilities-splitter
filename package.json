@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "bun src/main.ts",
-    "ynab:ids": "bun scripts/listYnabIds.ts"
+    "ynab:ids": "bun scripts/listYnabIds.ts",
+    "prepare": "prek install"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
@@ -17,6 +18,9 @@
     "zod": "^4.4.2"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@biomejs/biome": "^2.4.14",
+    "@j178/prek": "^0.3.11",
+    "@types/bun": "latest",
+    "knip": "^6.11.0"
   }
 }
