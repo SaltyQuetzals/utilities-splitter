@@ -26,7 +26,7 @@ export async function sendBillNotification(
   const table = [header, divider, ...rows, divider, footer].join("\n");
 
   const text =
-    `Utility bill paid ✓\n` +
+    `Utility bill paid ✅\n` +
     `Due: ${bill.dueDate}\n\n` +
     `\`\`\`\n${table}\n\`\`\`\n\n` +
     `Please Venmo request $${roommateShareDollars.toFixed(2)} from your roommate.`;
