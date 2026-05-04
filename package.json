@@ -7,11 +7,14 @@
     "ynab:ids": "bun scripts/listYnabIds.ts"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
+    "@openrouter/sdk": "^0.12.24",
     "dotenv": "^16.0.0",
-    "openai": "^4.0.0",
+    "pdf-lib": "^1.17.1",
     "pino": "^10.3.1",
     "playwright": "^1.40.0",
-    "ynab": "^4.1.0"
+    "ynab": "^4.1.0",
+    "zod": "^4.4.2"
   },
   "devDependencies": {
     "@types/bun": "latest"

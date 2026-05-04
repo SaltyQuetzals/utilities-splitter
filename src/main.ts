@@ -1,5 +1,5 @@
 import { loadConfig } from "./config";
-import { downloadBillAndScreenshot } from "./browser";
+import { downloadBillFirstPagePdf } from "./browser";
 import { extractBillData } from "./ocr";
 import { YNABClient } from "./ynabClient";
 import { sendBillNotification } from "./telegram";
@@ -11,15 +11,12 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const ynabClient = new YNABClient(config);
 
-  logger.info("Downloading latest bill screenshot");
-  const screenshotBuffer = await downloadBillAndScreenshot(config);
-  logger.info(
-    { screenshotBytes: screenshotBuffer.length },
-    "Downloaded bill screenshot"
-  );
+  logger.info("Downloading latest bill PDF");
+  const billPdfBuffer = await downloadBillFirstPagePdf(config);
+  logger.info({ pdfBytes: billPdfBuffer.length }, "Downloaded bill PDF");
 
   logger.info("Extracting bill data with OCR");
-  const bill = await extractBillData(screenshotBuffer, config);
+  const bill = await extractBillData(billPdfBuffer, config);
 
   const memoTag = `[UTIL:${bill.billDate}]`;
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -42,7 +39,7 @@ async function main(): Promise<void> {
   );
 
   const [regularTx, scheduledTx] = await Promise.all([
-    ynabClient.findRegularTransaction(memoTag, bill.billDate),
+    ynabClient.findRegularTransaction(memoTag, bill.dueDate),
     ynabClient.findScheduledTransaction(memoTag),
   ]);
 

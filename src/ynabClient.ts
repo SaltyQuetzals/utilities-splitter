@@ -1,10 +1,10 @@
+import { Temporal } from "@js-temporal/polyfill";
 import * as ynab from "ynab";
 import type { Config } from "./config";
 import { logger as rootLogger } from "./logger";
 import type { BillData } from "./ocr";
 import {
   dollarsToMilliunitsOutflow,
-  milliunits,
   type Dollars,
   type Milliunits,
 } from "./units";
@@ -45,20 +45,29 @@ export class YNABClient {
 
   async findRegularTransaction(
     memoTag: string,
-    sinceDateStr: string
+    dueDateStr: string
   ): Promise<ynab.TransactionDetail | null> {
-    this.logger.info({ memoTag, sinceDateStr }, "Searching regular transactions");
+    const windowStartStr = addDays(dueDateStr, -7);
+    const windowEndStr = addDays(dueDateStr, 7);
+    this.logger.info(
+      { memoTag, windowStartStr, windowEndStr },
+      "Searching regular transactions"
+    );
     const response = await this.api.transactions.getTransactions(
       this.budgetId,
-      sinceDateStr
+      windowStartStr
     );
     const transaction =
-      response.data.transactions.find((tx) => tx.memo?.includes(memoTag)) ??
-      null;
+      response.data.transactions.find(
+        (tx) =>
+          tx.memo?.includes(memoTag) &&
+          tx.date <= windowEndStr
+      ) ?? null;
     this.logger.info(
       {
         memoTag,
-        sinceDateStr,
+        windowStartStr,
+        windowEndStr,
         found: transaction != null,
         transactionId: transaction?.id,
       },
@@ -127,44 +136,27 @@ export class YNABClient {
   }
 }
 
+function addDays(dateStr: string, days: number): string {
+  return Temporal.PlainDate.from(dateStr).add({ days }).toString();
+}
+
 function buildSubtransactions(
   bill: BillData,
   config: Config,
   totalAmountMilliunits: Milliunits
 ): ynab.SaveSubTransaction[] {
-  const subtransactions: ynab.SaveSubTransaction[] = [];
+  const myHalves: ynab.SaveSubTransaction[] = bill.categories.map((category) => ({
+    amount: dollarsToMilliunitsOutflow((category.amountDollars / 2) as Dollars),
+    category_id: config.categoryMappings[category.name.toLowerCase()] ?? null,
+  }));
 
-  for (const category of bill.categories) {
-    const halfAmountDollars = (category.amountDollars / 2) as Dollars;
-    const halfAmountMilliunits = dollarsToMilliunitsOutflow(halfAmountDollars);
-    const categoryId =
-      config.categoryMappings[category.name.toLowerCase()];
+  const myHalfSum = myHalves.reduce((sum, s) => sum + s.amount, 0) as Milliunits;
 
-    subtransactions.push(
-      {
-        amount: halfAmountMilliunits,
-        category_id: categoryId ?? null,
-        memo: `My half — ${category.name}`,
-      },
-      {
-        amount: halfAmountMilliunits,
-        category_id: config.ynabReimbursementsCategoryId,
-        memo: `Roommate half — ${category.name}`,
-      }
-    );
-  }
-
-  // Adjust the last subtransaction to absorb any rounding drift so all
-  // subtransaction amounts sum exactly to the parent transaction amount.
-  const subtransactionSum = subtransactions.reduce(
-    (sum, s) => sum + s.amount,
-    0
-  ) as Milliunits;
-  const drift = (totalAmountMilliunits - subtransactionSum) as Milliunits;
-  if (drift !== milliunits(0)) {
-    const last = subtransactions[subtransactions.length - 1];
-    last.amount = (last.amount + drift) as Milliunits;
-  }
-
-  return subtransactions;
+  return [
+    ...myHalves,
+    {
+      amount: (totalAmountMilliunits - myHalfSum) as Milliunits,
+      category_id: config.ynabReimbursementsCategoryId,
+    },
+  ];
 }

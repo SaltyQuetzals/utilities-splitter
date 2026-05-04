@@ -86,6 +86,6 @@ It must return a PNG `Buffer` of the first page of the latest bill. Typical impl
 | Package | Purpose |
 |---|---|
 | `ynab` | Official YNAB SDK (typed) |
-| `openai` | OpenAI-compatible client used to call OpenRouter |
+| `@openrouter/sdk` | Official OpenRouter SDK for calling LLMs via OpenRouter |
 | `playwright` | Browser automation for bill download |
 | `dotenv` | Load `.env` into `process.env` |

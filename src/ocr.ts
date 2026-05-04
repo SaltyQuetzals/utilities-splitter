@@ -1,4 +1,5 @@
-import OpenAI from "openai";
+import { OpenRouter } from "@openrouter/sdk";
+import { z } from "zod";
 import type { Config } from "./config";
 import { logger } from "./logger";
 import { dollars, type Dollars } from "./units";
@@ -17,72 +18,107 @@ export interface BillData {
   categories: BillCategory[];
 }
 
-interface OcrResponse {
-  bill_date: string;
-  due_date: string;
-  total_amount: number;
-  categories: Array<{ name: string; amount: number }>;
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+
+function createOcrResponseSchema(config: Config) {
+  const categoryNames = Object.keys(config.categoryMappings);
+  if (categoryNames.length === 0) {
+    throw new Error("No bill category mappings configured");
+  }
+
+  const categoryNameSchema = z.enum(categoryNames as [string, ...string[]]);
+
+  return z.strictObject({
+    bill_date: dateSchema.describe(
+      "Bill issue date in YYYY-MM-DD format. This identifies the bill."
+    ),
+    due_date: dateSchema.describe("Payment due date in YYYY-MM-DD format."),
+    total_amount: z
+      .number()
+      .nonnegative()
+      .describe("Total amount due in dollars, without a currency symbol."),
+    categories: z
+      .array(
+        z.strictObject({
+          name: categoryNameSchema.describe(
+            "Bill category name. Must exactly match one configured category mapping."
+          ),
+          amount: z
+            .number()
+            .nonnegative()
+            .describe(
+              "Category charge amount in dollars, without a currency symbol."
+            ),
+        })
+      )
+      .min(1)
+      .describe("Itemized bill categories that add up to the total amount."),
+  });
 }
 
-const EXTRACTION_PROMPT = `You are extracting structured data from a utility bill image.
+function createExtractionPrompt(config: Config): string {
+  const categoryNames = Object.keys(config.categoryMappings).join(", ");
+  return `You are extracting structured data from a utility bill PDF.
 
 Return a JSON object with exactly these fields:
 - bill_date: the bill issue date in YYYY-MM-DD format
 - due_date: the payment due date in YYYY-MM-DD format
 - total_amount: the total amount due as a number (dollars, no currency symbol)
 - categories: an array of objects, each with:
-  - name: the category/service name (e.g. "Electric", "Gas", "Water")
+  - name: the category/service name; use exactly one of these configured category names: ${categoryNames}
   - amount: the charge amount as a number (dollars, no currency symbol)
 
 Return only valid JSON. Do not include any explanation or markdown.`;
-
-function isOcrResponse(value: unknown): value is OcrResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
-  if (typeof v.bill_date !== "string") return false;
-  if (typeof v.due_date !== "string") return false;
-  if (typeof v.total_amount !== "number") return false;
-  if (!Array.isArray(v.categories)) return false;
-  for (const cat of v.categories) {
-    if (typeof cat !== "object" || cat === null) return false;
-    if (typeof (cat as Record<string, unknown>).name !== "string") return false;
-    if (typeof (cat as Record<string, unknown>).amount !== "number") return false;
-  }
-  return true;
 }
 
 export async function extractBillData(
-  screenshotBuffer: Buffer,
+  billPdfBuffer: Buffer,
   config: Config
 ): Promise<BillData> {
   const ocrLogger = logger.child({
     module: "ocr",
     model: config.openrouterModel,
-    screenshotBytes: screenshotBuffer.length,
+    pdfBytes: billPdfBuffer.length,
   });
-  const client = new OpenAI({
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: config.openrouterApiKey,
-  });
+  const client = new OpenRouter({ apiKey: config.openrouterApiKey });
+  const ocrResponseSchema = createOcrResponseSchema(config);
+  const jsonSchema = z.toJSONSchema(ocrResponseSchema);
 
-  const b64 = screenshotBuffer.toString("base64");
+  const b64 = billPdfBuffer.toString("base64");
 
-  ocrLogger.info("Sending bill screenshot to OpenRouter");
-  const response = await client.chat.completions.create({
-    model: config.openrouterModel,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: EXTRACTION_PROMPT },
-          {
-            type: "image_url",
-            image_url: { url: `data:image/png;base64,${b64}` },
-          },
-        ],
+  ocrLogger.info("Sending bill PDF to OpenRouter");
+  const response = await client.chat.send({
+    chatRequest: {
+      model: config.openrouterModel,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: createExtractionPrompt(config) },
+            {
+              type: "file",
+              file: {
+                filename: "utility-bill-first-page.pdf",
+                fileData: `data:application/pdf;base64,${b64}`,
+              },
+            },
+          ],
+        },
+      ],
+      provider: {
+        requireParameters: true,
       },
-    ],
-    response_format: { type: "json_object" },
+      responseFormat: {
+        type: "json_schema",
+        jsonSchema: {
+          name: "utility_bill",
+          strict: true,
+          schema: jsonSchema,
+        },
+      },
+    },
   });
 
   const raw = response.choices[0]?.message?.content;
@@ -95,25 +131,29 @@ export async function extractBillData(
     throw new Error(`OpenRouter response is not valid JSON: ${raw}`);
   }
 
-  if (!isOcrResponse(parsed)) {
-    throw new Error(`Unexpected OCR response shape: ${JSON.stringify(parsed)}`);
+  const validation = ocrResponseSchema.safeParse(parsed);
+  if (!validation.success) {
+    throw new Error(
+      `Unexpected OCR response shape: ${z.prettifyError(validation.error)}`
+    );
   }
+  const billData = validation.data;
 
   ocrLogger.info(
     {
-      billDate: parsed.bill_date,
-      dueDate: parsed.due_date,
-      totalAmountDollars: parsed.total_amount,
-      categoryCount: parsed.categories.length,
+      billDate: billData.bill_date,
+      dueDate: billData.due_date,
+      totalAmountDollars: billData.total_amount,
+      categoryCount: billData.categories.length,
     },
     "OpenRouter OCR response parsed"
   );
 
   return {
-    billDate: parsed.bill_date,
-    dueDate: parsed.due_date,
-    totalAmountDollars: dollars(parsed.total_amount),
-    categories: parsed.categories.map((cat) => ({
+    billDate: billData.bill_date,
+    dueDate: billData.due_date,
+    totalAmountDollars: dollars(billData.total_amount),
+    categories: billData.categories.map((cat) => ({
       name: cat.name,
       amountDollars: dollars(cat.amount),
     })),
