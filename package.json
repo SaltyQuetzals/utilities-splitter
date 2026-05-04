@@ -1,0 +1,14 @@
+{
+  "name": "utilities-splitter",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "bun src/main.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "openai": "^4.0.0",
+    "playwright": "^1.40.0",
+    "ynab": "^1.0.0"
+  }
+}

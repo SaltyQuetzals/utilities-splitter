@@ -1,0 +1,15 @@
+{
+  "openrouterModel": "qwen/qwen-2.5-vl-7b-instruct",
+  "ynab": {
+    "budgetId": "your-budget-uuid",
+    "accountId": "your-account-uuid",
+    "reimbursementsCategoryId": "your-reimbursements-cat-uuid"
+  },
+  "categoryMappings": {
+    "Electric": "ynab-category-uuid",
+    "Gas": "ynab-category-uuid",
+    "Water": "ynab-category-uuid",
+    "Sewer": "ynab-category-uuid",
+    "Trash": "ynab-category-uuid"
+  }
+}
