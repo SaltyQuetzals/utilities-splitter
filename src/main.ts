@@ -1,13 +1,15 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { loadConfig } from "./config";
 import { downloadBillFirstPagePdf } from "./browser";
 import { extractBillData } from "./ocr";
 import { YNABClient } from "./ynabClient";
-import { sendBillNotification } from "./telegram";
+import { sendBillApprovalRequest, waitForSplitApproval, sendErrorNotification, sendSplitCompletedNotification } from "./telegram";
 import { logger } from "./logger";
 import type { Dollars } from "./units";
 
 async function main(): Promise<void> {
   logger.info("Starting utility bill workflow");
+
   const config = loadConfig();
   const ynabClient = new YNABClient(config);
 
@@ -19,7 +21,7 @@ async function main(): Promise<void> {
   const bill = await extractBillData(billPdfBuffer, config);
 
   const memoTag = `[UTIL:${bill.billDate}]`;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = Temporal.Now.plainDateISO().toString();
   const workflowLogger = logger.child({
     billDate: bill.billDate,
     dueDate: bill.dueDate,
@@ -53,13 +55,15 @@ async function main(): Promise<void> {
       workflowLogger.info("Bill already split; nothing to do");
       return;
     }
-    // Step 8: Bill entered in YNAB for the first time — split and notify.
-    await ynabClient.splitTransaction(regularTx.id, bill, config);
+    // Step 8: Bill entered in YNAB for the first time — notify first, then split on approval.
     const roommateShareDollars = (bill.totalAmountDollars / 2) as Dollars;
-    await sendBillNotification(config, bill, roommateShareDollars);
+    const messageId = await sendBillApprovalRequest(config, bill, roommateShareDollars, billPdfBuffer, regularTx.id);
+    await waitForSplitApproval(config, regularTx.id, messageId);
+    await ynabClient.splitTransaction(regularTx.id, bill, config);
+    await sendSplitCompletedNotification(config, bill, roommateShareDollars, regularTx.id, messageId);
     workflowLogger.info(
       { transactionId: regularTx.id, roommateShareDollars },
-      "Bill split and Telegram notification sent"
+      "Bill split approved and completed"
     );
     return;
   }
@@ -94,7 +98,13 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   logger.error({ err }, "Utility bill workflow failed");
+  try {
+    const config = loadConfig();
+    await sendErrorNotification(config, err);
+  } catch (notifyErr) {
+    logger.error({ err: notifyErr }, "Failed to send Telegram error notification");
+  }
   process.exit(1);
 });

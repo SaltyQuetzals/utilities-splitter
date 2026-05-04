@@ -6,8 +6,8 @@ A daily cron script that automates the full lifecycle of a shared utility bill:
 2. OCRs the first page using Qwen 2.5 VL (via OpenRouter) to extract itemized categories and the total
 3. Checks YNAB for an existing transaction matching the bill
 4. Creates a scheduled transaction when a new bill is detected
-5. Once the bill clears in YNAB, splits it 50/50 across your utility categories and a Reimbursements category
-6. Sends a Telegram message reminding you to Venmo-request your roommate's share
+5. Once the bill clears in YNAB, sends a Telegram message with the bill PDF and an inline **"✅ Split in YNAB"** button
+6. When you press the button, splits the transaction 50/50 across your utility categories and a Reimbursements category
 
 Subsequent runs are idempotent — once a transaction has been split, no further action is taken.
 
@@ -81,9 +81,9 @@ bun run ynab:ids --budget <budget-id>
 }
 ```
 
-### 4. Implement the browser module
+### 4. Enable inline keyboard callbacks on your Telegram bot
 
-`src/browser.ts` is a stub. Fill in the Playwright automation to log in to coautilities.com, download the latest bill PDF, and return a PNG screenshot of its first page as a `Buffer`. See the file for the expected function signature.
+The bot sends an inline button with the bill message. For the button to fire a callback that this script can receive, ensure your bot **has not** set a webhook (`deleteWebhook` if needed). The script uses Telegram's long-poll `getUpdates` API, which is incompatible with an active webhook.
 
 ---
 
@@ -119,7 +119,7 @@ Each run, the script extracts a `billDate` from the OCR result and looks for a m
 | No transaction found, due date in the future | Create a scheduled transaction |
 | Scheduled transaction found, due date in the future | Nothing to do |
 | Scheduled transaction found, due date has passed | Warn — bill is past due but not yet entered in YNAB |
-| Regular transaction found, not yet split | Split 50/50, send Telegram notification |
+| Regular transaction found, not yet split | Send Telegram PDF with inline approval button; split 50/50 once button is pressed |
 | Regular transaction found, already split | Nothing to do (deduplication) |
 
 ---
@@ -129,10 +129,10 @@ Each run, the script extracts a `billDate` from the OCR result and looks for a m
 ```
 src/
   main.ts         Decision logic orchestrator
-  browser.ts      Playwright stub — implement this yourself
+  browser.ts      COA download automation
   ocr.ts          OpenRouter Qwen VL bill extraction
   ynabClient.ts   YNAB API wrapper
-  telegram.ts     Telegram notification
+  telegram.ts     Telegram PDF + inline button approval flow
   config.ts       Config loader (.env + config.json)
   logger.ts       Shared pino logger
   units.ts        Branded Dollars/Milliunits types
