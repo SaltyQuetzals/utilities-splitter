@@ -1,4 +1,5 @@
 import type { Config } from "./config";
+import { logger } from "./logger";
 import type { BillData } from "./ocr";
 import type { Dollars } from "./units";
 
@@ -7,6 +8,12 @@ export async function sendBillNotification(
   bill: BillData,
   roommateShareDollars: Dollars
 ): Promise<void> {
+  const notificationLogger = logger.child({
+    module: "telegram",
+    billDate: bill.billDate,
+    dueDate: bill.dueDate,
+    roommateShareDollars,
+  });
   const breakdown = bill.categories
     .map(
       (cat) =>
@@ -21,6 +28,7 @@ export async function sendBillNotification(
     `Please Venmo request $${roommateShareDollars.toFixed(2)} from your roommate.`;
 
   const url = `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`;
+  notificationLogger.info("Sending Telegram bill notification");
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -31,4 +39,6 @@ export async function sendBillNotification(
     const body = await response.text();
     throw new Error(`Telegram sendMessage failed (${response.status}): ${body}`);
   }
+
+  notificationLogger.info("Telegram bill notification sent");
 }

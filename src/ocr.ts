@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { Config } from "./config";
+import { logger } from "./logger";
 import { dollars, type Dollars } from "./units";
 
 export interface BillCategory {
@@ -54,6 +55,11 @@ export async function extractBillData(
   screenshotBuffer: Buffer,
   config: Config
 ): Promise<BillData> {
+  const ocrLogger = logger.child({
+    module: "ocr",
+    model: config.openrouterModel,
+    screenshotBytes: screenshotBuffer.length,
+  });
   const client = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
     apiKey: config.openrouterApiKey,
@@ -61,6 +67,7 @@ export async function extractBillData(
 
   const b64 = screenshotBuffer.toString("base64");
 
+  ocrLogger.info("Sending bill screenshot to OpenRouter");
   const response = await client.chat.completions.create({
     model: config.openrouterModel,
     messages: [
@@ -91,6 +98,16 @@ export async function extractBillData(
   if (!isOcrResponse(parsed)) {
     throw new Error(`Unexpected OCR response shape: ${JSON.stringify(parsed)}`);
   }
+
+  ocrLogger.info(
+    {
+      billDate: parsed.bill_date,
+      dueDate: parsed.due_date,
+      totalAmountDollars: parsed.total_amount,
+      categoryCount: parsed.categories.length,
+    },
+    "OpenRouter OCR response parsed"
+  );
 
   return {
     billDate: parsed.bill_date,

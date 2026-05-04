@@ -93,6 +93,13 @@ bun run ynab:ids --budget <budget-id>
 bun start
 ```
 
+Logs are emitted as structured JSON through `pino`. Set `LOG_LEVEL` to adjust
+verbosity:
+
+```sh
+LOG_LEVEL=debug bun start
+```
+
 ### Cron
 
 To run once a day at 8 AM:
@@ -127,6 +134,7 @@ src/
   ynabClient.ts   YNAB API wrapper
   telegram.ts     Telegram notification
   config.ts       Config loader (.env + config.json)
+  logger.ts       Shared pino logger
   units.ts        Branded Dollars/Milliunits types
 config.json       Non-secret config: YNAB IDs, category mappings
 .env.example      Secret environment variable template

@@ -1,5 +1,6 @@
 import * as ynab from "ynab";
 import type { Config } from "./config";
+import { logger as rootLogger } from "./logger";
 import type { BillData } from "./ocr";
 import {
   dollarsToMilliunitsOutflow,
@@ -12,6 +13,7 @@ export class YNABClient {
   private readonly api: ynab.API;
   private readonly budgetId: string;
   private readonly accountId: string;
+  private readonly logger = rootLogger.child({ module: "ynab" });
 
   constructor(config: Config) {
     this.api = new ynab.API(config.ynabApiKey);
@@ -22,27 +24,47 @@ export class YNABClient {
   async findScheduledTransaction(
     memoTag: string
   ): Promise<ynab.ScheduledTransactionDetail | null> {
+    this.logger.info({ memoTag }, "Searching scheduled transactions");
     const response = await this.api.scheduledTransactions.getScheduledTransactions(
       this.budgetId
     );
-    return (
+    const transaction =
       response.data.scheduled_transactions.find((tx) =>
         tx.memo?.includes(memoTag)
-      ) ?? null
+      ) ?? null;
+    this.logger.info(
+      {
+        memoTag,
+        found: transaction != null,
+        scheduledTransactionId: transaction?.id,
+      },
+      "Scheduled transaction search complete"
     );
+    return transaction;
   }
 
   async findRegularTransaction(
     memoTag: string,
     sinceDateStr: string
   ): Promise<ynab.TransactionDetail | null> {
+    this.logger.info({ memoTag, sinceDateStr }, "Searching regular transactions");
     const response = await this.api.transactions.getTransactions(
       this.budgetId,
       sinceDateStr
     );
-    return (
-      response.data.transactions.find((tx) => tx.memo?.includes(memoTag)) ?? null
+    const transaction =
+      response.data.transactions.find((tx) => tx.memo?.includes(memoTag)) ??
+      null;
+    this.logger.info(
+      {
+        memoTag,
+        sinceDateStr,
+        found: transaction != null,
+        transactionId: transaction?.id,
+      },
+      "Regular transaction search complete"
     );
+    return transaction;
   }
 
   async createScheduledTransaction(
@@ -51,6 +73,10 @@ export class YNABClient {
     memo: string
   ): Promise<void> {
     const totalAmountMilliunits = dollarsToMilliunitsOutflow(totalAmountDollars);
+    this.logger.info(
+      { dueDateStr, totalAmountDollars, totalAmountMilliunits, memo },
+      "Creating scheduled transaction"
+    );
     await this.api.scheduledTransactions.createScheduledTransaction(
       this.budgetId,
       {
@@ -63,6 +89,7 @@ export class YNABClient {
         },
       }
     );
+    this.logger.info({ dueDateStr, memo }, "Scheduled transaction created");
   }
 
   async splitTransaction(
@@ -78,11 +105,21 @@ export class YNABClient {
       config,
       totalAmountMilliunits
     );
+    this.logger.info(
+      {
+        transactionId,
+        billDate: bill.billDate,
+        totalAmountMilliunits,
+        subtransactionCount: subtransactions.length,
+      },
+      "Splitting transaction"
+    );
     await this.api.transactions.updateTransaction(this.budgetId, transactionId, {
       transaction: {
         subtransactions,
       },
     });
+    this.logger.info({ transactionId }, "Transaction split complete");
   }
 
   isAlreadySplit(tx: ynab.TransactionDetail): boolean {

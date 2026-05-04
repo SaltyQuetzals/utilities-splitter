@@ -9,6 +9,7 @@
   "dependencies": {
     "dotenv": "^16.0.0",
     "openai": "^4.0.0",
+    "pino": "^10.3.1",
     "playwright": "^1.40.0",
     "ynab": "^4.1.0"
   },
