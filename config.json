@@ -1,15 +1,17 @@
 {
-  "openrouterModel": "qwen/qwen-2.5-vl-7b-instruct",
+  "openrouterModel": "qwen/qwen3-vl-8b-instruct",
   "ynab": {
-    "budgetId": "your-budget-uuid",
-    "accountId": "your-account-uuid",
-    "reimbursementsCategoryId": "your-reimbursements-cat-uuid"
+    "budgetId": "d8b42b76-c8b6-422b-887d-ad7c0fb736e6",
+    "accountId": "9f8f5d62-f47b-465e-a0ab-b84af750af6d",
+    "reimbursementsCategoryId": "12f2c5ef-0a86-4f60-857e-643333492cf5"
   },
   "categoryMappings": {
-    "Electric": "ynab-category-uuid",
-    "Gas": "ynab-category-uuid",
-    "Water": "ynab-category-uuid",
-    "Sewer": "ynab-category-uuid",
-    "Trash": "ynab-category-uuid"
+    "Electric": "5f2907b6-f3f7-4c65-9e2d-80455e22491f",
+    "Water": "91c2e22f-5d8a-41b9-9ed8-aa37c87efdaf",
+    "Clean Community Service": "121878c4-5a22-455c-b439-8d1fc58a2c16",
+    "Street Service": "e136e9b6-4066-4dc4-8209-f591eb271c10",
+    "Drainage Service": "596aa349-74c9-4274-b3de-ccabdb33d86a",
+    "Solid Waste Services": "34c6f5a3-5ceb-4154-9e2d-0a38bd3f42ef",
+    "Wastewater": "5ea7f8b7-56c9-4ff5-8c4a-fbe561e585de"
   }
 }
