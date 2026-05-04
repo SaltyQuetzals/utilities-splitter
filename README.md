@@ -52,6 +52,18 @@ cp .env.example .env
 
 Edit `config.json` with your budget, account, and category UUIDs. You can find these in the YNAB web app URL or via the [YNAB API](https://api.ynab.com/v1#/Budgets/getBudgets).
 
+To list the IDs available to your `YNAB_API_KEY`, run:
+
+```sh
+bun run ynab:ids
+```
+
+To show accounts and categories for only one budget:
+
+```sh
+bun run ynab:ids --budget <budget-id>
+```
+
 ```jsonc
 {
   "openrouterModel": "qwen/qwen-2.5-vl-7b-instruct",
