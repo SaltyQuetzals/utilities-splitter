@@ -75,6 +75,23 @@ export class YNABClient {
     return transaction;
   }
 
+  /** Wide-window search for a regular transaction by memo tag alone. */
+  async findRecentTransactionByMemo(
+    memoTag: string,
+  ): Promise<ynab.TransactionDetail | null> {
+    this.logger.info({ memoTag }, "Searching recent transactions by memo");
+    const thirtyDaysAgo = Temporal.Now.plainDateISO().subtract({ days: 60 }).toString();
+    const response = await this.api.transactions.getTransactions(
+      this.budgetId,
+      thirtyDaysAgo,
+    );
+    const transaction =
+      response.data.transactions.find((tx) => tx.memo?.includes(memoTag)) ??
+      null;
+    this.logger.info({ memoTag, found: transaction != null }, "Memo search complete");
+    return transaction;
+  }
+
   async createScheduledTransaction(
     dueDateStr: string,
     totalAmountDollars: Dollars,
