@@ -2,5 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["scripts/*.ts"],
   "project": ["src/**/*.ts", "scripts/**/*.ts"],
-  "ignoreDependencies": ["@biomejs/biome"]
+  "ignoreDependencies": ["@biomejs/biome"],
+  "ignore": ["src/split.ts"]
 }

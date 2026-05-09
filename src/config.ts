@@ -10,8 +10,6 @@ export interface Config {
   ynabReimbursementsCategoryId: string;
   openrouterApiKey: string;
   openrouterModel: string;
-  telegramBotToken: string;
-  telegramChatId: string;
   categoryMappings: Record<string, string>;
 }
 
@@ -31,8 +29,6 @@ export function loadConfig(): Config {
     ynabReimbursementsCategoryId: appConfig.ynab.reimbursementsCategoryId,
     openrouterApiKey: requireEnv("OPENROUTER_API_KEY"),
     openrouterModel: appConfig.openrouterModel,
-    telegramBotToken: requireEnv("TELEGRAM_BOT_TOKEN"),
-    telegramChatId: requireEnv("TELEGRAM_CHAT_ID"),
     categoryMappings: Object.fromEntries(
       Object.entries(appConfig.categoryMappings).map(([k, v]) => [
         k.toLowerCase(),

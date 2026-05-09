@@ -11,8 +11,6 @@ export const logger = pino({
       "config.coautilitiesPassword",
       "config.ynabApiKey",
       "config.openrouterApiKey",
-      "config.telegramBotToken",
-      "telegramBotToken",
       "ynabApiKey",
       "openrouterApiKey",
     ],

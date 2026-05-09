@@ -3,12 +3,6 @@ import { downloadBillFirstPagePdf } from "./browser";
 import { loadConfig } from "./config";
 import { logger } from "./logger";
 import { extractBillData } from "./ocr";
-import {
-  sendBillApprovalRequest,
-  sendErrorNotification,
-  sendSplitCompletedNotification,
-  waitForSplitApproval,
-} from "./telegram";
 import type { Dollars } from "./units";
 import { YNABClient } from "./ynabClient";
 
@@ -60,27 +54,20 @@ async function main(): Promise<void> {
       workflowLogger.info("Bill already split; nothing to do");
       return;
     }
-    // Step 8: Bill entered in YNAB for the first time — notify first, then split on approval.
+    // Found a cleared transaction that needs splitting — relay to Hermes.
     const roommateShareDollars = (bill.totalAmountDollars / 2) as Dollars;
-    const messageId = await sendBillApprovalRequest(
-      config,
-      bill,
+    const billJson = JSON.stringify({
+      transactionId: regularTx.id,
+      billDate: bill.billDate,
+      dueDate: bill.dueDate,
+      totalAmountDollars: bill.totalAmountDollars,
       roommateShareDollars,
-      billPdfBuffer,
-      regularTx.id,
-    );
-    await waitForSplitApproval(config, regularTx.id, messageId);
-    await ynabClient.splitTransaction(regularTx.id, bill, config);
-    await sendSplitCompletedNotification(
-      config,
-      bill,
-      roommateShareDollars,
-      regularTx.id,
-      messageId,
-    );
+      categories: bill.categories,
+    });
+    console.log(`CLEARED_TX_FOUND: ${billJson}`);
     workflowLogger.info(
       { transactionId: regularTx.id, roommateShareDollars },
-      "Bill split approved and completed",
+      "Cleared transaction found — output for Hermes relay",
     );
     return;
   }
@@ -115,16 +102,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(async (err) => {
+main().catch((err) => {
   logger.error({ err }, "Utility bill workflow failed");
-  try {
-    const config = loadConfig();
-    await sendErrorNotification(config, err);
-  } catch (notifyErr) {
-    logger.error(
-      { err: notifyErr },
-      "Failed to send Telegram error notification",
-    );
-  }
   process.exit(1);
 });

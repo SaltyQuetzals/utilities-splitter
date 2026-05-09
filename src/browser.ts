@@ -25,7 +25,7 @@ export async function downloadBillFirstPagePdf(
   config: Config,
 ): Promise<Buffer> {
   browserLogger.info("Launching browser");
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: false });
   const tempDir = await mkdtemp(join(tmpdir(), "utility-bill-"));
 
   try {
@@ -44,16 +44,20 @@ export async function downloadBillFirstPagePdf(
     await page
       .getByRole("textbox", { name: "Password" })
       .fill(config.coautilitiesPassword);
-    await page.getByRole("button", { name: "Log in" }).click();
 
-    browserLogger.info("Opening billing overview");
-    await page.goto("https://dss-coa.opower.com/dss/overview");
-    await page.getByRole("link", { name: "View bill" }).click();
+    // Click login and wait for SAML redirect chain to complete
+    browserLogger.info("Logging in");
+    await page.getByRole("button", { name: "Log in" }).click();
+    await page.waitForURL("**opower.com/**", { timeout: 60000 });
+    browserLogger.info("Landed on Opower dashboard");
+
+    // Click View bill (button, not link)
+    await page.getByRole("button", { name: "View bill" }).click();
 
     const downloadPromise = page.waitForEvent("download");
     browserLogger.info("Downloading bill PDF");
     await page
-      .getByRole("button", { name: "View bill (pdf)", exact: true })
+      .getByRole("button", { name: "View bill (PDF)", exact: true })
       .click();
     const download = await downloadPromise;
 
