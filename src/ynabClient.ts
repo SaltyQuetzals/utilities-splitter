@@ -140,11 +140,17 @@ export class YNABClient {
       },
       "Splitting transaction",
     );
+    // YNAB API requires the parent amount and category_id: null to convert a
+    // regular transaction into a split. Without the amount, the API may reject
+    // or create an invalid state. Without category_id: null, the parent retains
+    // its original category (splits must have category_id: null on the parent).
     await this.api.transactions.updateTransaction(
       this.budgetId,
       transactionId,
       {
         transaction: {
+          amount: totalAmountMilliunits,
+          category_id: null as unknown as string,
           subtransactions,
         },
       },

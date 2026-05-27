@@ -49,10 +49,19 @@ export async function downloadBillFirstPagePdf(
     browserLogger.info("Logging in");
     await page.getByRole("button", { name: "Log in" }).click();
     await page.waitForURL("**opower.com/**", { timeout: 60000 });
+
+    // login-success page redirects to the actual dashboard. Wait for that.
+    await page.waitForURL((url) => url.pathname.endsWith("/dss/"), { timeout: 30000 });
+    await page.waitForLoadState("networkidle", { timeout: 30000 });
     browserLogger.info("Landed on Opower dashboard");
 
-    // Click View bill (button, not link)
-    await page.getByRole("button", { name: "View bill" }).click();
+    // Click VIEW BILL to open the billing page (it's a link, not a button, and
+    // in all caps in the DOM). Skip actionability checks since the Opower page
+    // may trigger background SAML refresh navs during interaction.
+    await page.getByRole("link", { name: "VIEW BILL" }).click({ force: true });
+
+    // Wait for the billing page to load — URL should be an Opower billing path.
+    await page.waitForURL("**opower.com/**billing**", { timeout: 60000 });
 
     const downloadPromise = page.waitForEvent("download");
     browserLogger.info("Downloading bill PDF");
