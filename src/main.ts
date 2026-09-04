@@ -17,57 +17,26 @@ async function main(): Promise<void> {
   const ynabClient = new YNABClient(config);
   const state = await loadState();
 
-  // ── Gate 1: State check — skip browser + LLM if last bill is still current ──
+  // ── Gate 1: State check — informational only ──
+  // Gate 1 NEVER returns early. The PDF hash check in Gate 2 is the
+  // authoritative "is there a new bill" signal: bills arrive monthly, and a new
+  // bill can land within BILL_CYCLE_DAYS of the previous one (e.g. July 6 bill
+  // split + August bill on Aug 6 = 31 days, inside the 35-day window). The last
+  // bill's YNAB state (scheduled tx exists / already split) says nothing about
+  // whether a NEW bill has been posted. Short-circuiting here caused the Aug
+  // bill to be missed. Gate 2's download + hash is the cheap check; OCR is the
+  // expensive part, so always let Gate 2 decide.
   if (state.lastBillDate !== null) {
     const lastBillDate = Temporal.PlainDate.from(state.lastBillDate);
     const today = Temporal.Now.plainDateISO();
     const daysSinceLastBill = lastBillDate.until(today).days;
 
-    if (daysSinceLastBill <= BILL_CYCLE_DAYS) {
-      logger.info(
-        { lastBillDate: state.lastBillDate, daysSinceLastBill },
-        "Gate 1: Last bill is recent — checking YNAB",
-      );
-
-      const memoTag = `[UTIL:${state.lastBillDate}]`;
-
-      // Check both scheduled and regular transactions for the last known memo tag.
-      const [existingScheduled, existingRegular] = await Promise.all([
-        ynabClient.findScheduledTransaction(memoTag),
-        ynabClient.findRecentTransactionByMemo(memoTag),
-      ]);
-
-      if (existingScheduled !== null) {
-        logger.info(
-          { lastBillDate: state.lastBillDate, scheduledTransactionId: existingScheduled.id },
-          "Gate 1: Scheduled transaction already exists for last known bill — nothing to do",
-        );
-        return;
-      }
-
-      if (existingRegular !== null) {
-        if (ynabClient.isAlreadySplit(existingRegular)) {
-          logger.info(
-            { lastBillDate: state.lastBillDate, transactionId: existingRegular.id },
-            "Gate 1: Bill already split — nothing to do",
-          );
-          return;
-        }
-        // Regular transaction exists but isn't split yet — proceed to Gate 3
-        // with the PDF we already have. But we don't have the PDF stored, so we
-        // need to re-download it for the Telegram approval flow.
-        // Fall through to Gate 2.
-        logger.info(
-          { lastBillDate: state.lastBillDate, transactionId: existingRegular.id },
-          "Gate 1: Unsplit regular transaction found — moving to Gate 2 for PDF",
-        );
-      }
-    } else {
-      logger.info(
-        { lastBillDate: state.lastBillDate, daysSinceLastBill },
-        `Gate 1: Last bill is more than ${BILL_CYCLE_DAYS} days old — new bill may be available`,
-      );
-    }
+    logger.info(
+      { lastBillDate: state.lastBillDate, daysSinceLastBill },
+      daysSinceLastBill <= BILL_CYCLE_DAYS
+        ? "Gate 1: Last bill is recent — proceeding to PDF hash check"
+        : `Gate 1: Last bill is more than ${BILL_CYCLE_DAYS} days old — new bill may be available`,
+    );
   } else {
     logger.info("Gate 1: No previous bill state — proceeding to download");
   }
@@ -78,13 +47,13 @@ async function main(): Promise<void> {
   const pdfHash = computePdfHash(billPdfBuffer);
 
   logger.info(
-    { pdfBytes: billPdfBuffer.length, pdfHash: pdfHash.slice(0, 16) + "…" },
+    { pdfBytes: billPdfBuffer.length, pdfHash: `${pdfHash.slice(0, 16)}…` },
     "Downloaded bill PDF",
   );
 
   if (state.lastPdfHash !== null && pdfHash === state.lastPdfHash) {
     logger.info(
-      { pdfHash: pdfHash.slice(0, 16) + "…" },
+      { pdfHash: `${pdfHash.slice(0, 16)}…` },
       "Gate 2: PDF hash matches last run — bill hasn't changed, skipping OCR",
     );
     return;

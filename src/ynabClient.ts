@@ -80,7 +80,9 @@ export class YNABClient {
     memoTag: string,
   ): Promise<ynab.TransactionDetail | null> {
     this.logger.info({ memoTag }, "Searching recent transactions by memo");
-    const thirtyDaysAgo = Temporal.Now.plainDateISO().subtract({ days: 60 }).toString();
+    const thirtyDaysAgo = Temporal.Now.plainDateISO()
+      .subtract({ days: 60 })
+      .toString();
     const response = await this.api.transactions.getTransactions(
       this.budgetId,
       thirtyDaysAgo,
@@ -88,7 +90,10 @@ export class YNABClient {
     const transaction =
       response.data.transactions.find((tx) => tx.memo?.includes(memoTag)) ??
       null;
-    this.logger.info({ memoTag, found: transaction != null }, "Memo search complete");
+    this.logger.info(
+      { memoTag, found: transaction != null },
+      "Memo search complete",
+    );
     return transaction;
   }
 

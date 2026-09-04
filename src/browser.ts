@@ -14,7 +14,13 @@ async function extractFirstPdfPage(pdfBuffer: Buffer): Promise<Buffer> {
     throw new Error("Downloaded bill PDF has no pages");
   }
 
-  const firstPagePdf = await PDFDocument.create();
+  // NOTE: updateMetadata MUST be false here. pdf-lib's default (true) injects
+  // a fresh /CreationDate + /ModDate (current wall clock) into the document
+  // Info dict on every create/save, which makes the re-serialized bytes differ
+  // every run — defeating the Gate 2 hash check (OCR ran every day despite an
+  // unchanged bill). Disabling metadata makes extraction byte-stable for
+  // identical input.
+  const firstPagePdf = await PDFDocument.create({ updateMetadata: false });
   const [firstPage] = await firstPagePdf.copyPages(sourcePdf, [0]);
   firstPagePdf.addPage(firstPage);
 
@@ -51,14 +57,45 @@ export async function downloadBillFirstPagePdf(
     await page.waitForURL("**opower.com/**", { timeout: 60000 });
 
     // login-success page redirects to the actual dashboard. Wait for that.
-    await page.waitForURL((url) => url.pathname.endsWith("/dss/"), { timeout: 30000 });
+    await page.waitForURL((url) => url.pathname.endsWith("/dss/"), {
+      timeout: 30000,
+    });
     await page.waitForLoadState("networkidle", { timeout: 30000 });
     browserLogger.info("Landed on Opower dashboard");
 
     // Click VIEW BILL to open the billing page (it's a link, not a button, and
     // in all caps in the DOM). Skip actionability checks since the Opower page
     // may trigger background SAML refresh navs during interaction.
-    await page.getByRole("link", { name: "VIEW BILL" }).click({ force: true });
+    //
+    // networkidle doesn't guarantee the billing content chunk rendered — the
+    // dashboard shell can load while a background SAML nav rebuilds the DOM,
+    // leaving the VIEW BILL link absent for a while (observed 2026-09-03:
+    // login + dashboard OK, link missing for a full 30s, daily run failed).
+    // Retry with a fresh 30s wait per attempt before giving up.
+    const viewBillAttempts = 3;
+    const viewBillRetryDelayMs = 5_000;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await page
+          .getByRole("link", { name: "VIEW BILL" })
+          .click({ force: true });
+        break;
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.name === "TimeoutError";
+        if (attempt >= viewBillAttempts || !isTimeout) throw err;
+        browserLogger.warn(
+          {
+            attempt,
+            maxAttempts: viewBillAttempts,
+            retryDelayMs: viewBillRetryDelayMs,
+          },
+          "VIEW BILL link not ready — retrying",
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, viewBillRetryDelayMs),
+        );
+      }
+    }
 
     // Wait for the billing page to load — URL should be an Opower billing path.
     await page.waitForURL("**opower.com/**billing**", { timeout: 60000 });

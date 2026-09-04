@@ -1,6 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { join, dirname } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { logger } from "./logger";
 
@@ -10,7 +10,7 @@ const STATE_FILE = join(
   ".utilities-splitter-state.json",
 );
 
-export interface State {
+interface State {
   /** YYYY-MM-DD of the last successfully OCR'd bill, or null. */
   lastBillDate: string | null;
   /** Hex-encoded SHA-256 of the last OCR'd first-page PDF, or null. */

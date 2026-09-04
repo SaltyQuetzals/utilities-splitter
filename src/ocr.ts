@@ -2,6 +2,7 @@ import { OpenRouter } from "@openrouter/sdk";
 import { z } from "zod";
 import type { Config } from "./config";
 import { logger } from "./logger";
+import { withRetries } from "./retry";
 import { type Dollars, dollars } from "./units";
 
 interface BillCategory {
@@ -89,37 +90,41 @@ export async function extractBillData(
   const b64 = billPdfBuffer.toString("base64");
 
   ocrLogger.info("Sending bill PDF to OpenRouter");
-  const response = await client.chat.send({
-    chatRequest: {
-      model: config.openrouterModel,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: createExtractionPrompt(config) },
+  const response = await withRetries(
+    () =>
+      client.chat.send({
+        chatRequest: {
+          model: config.openrouterModel,
+          messages: [
             {
-              type: "file",
-              file: {
-                filename: "utility-bill-first-page.pdf",
-                fileData: `data:application/pdf;base64,${b64}`,
-              },
+              role: "user",
+              content: [
+                { type: "text", text: createExtractionPrompt(config) },
+                {
+                  type: "file",
+                  file: {
+                    filename: "utility-bill-first-page.pdf",
+                    fileData: `data:application/pdf;base64,${b64}`,
+                  },
+                },
+              ],
             },
           ],
+          provider: {
+            requireParameters: true,
+          },
+          responseFormat: {
+            type: "json_schema",
+            jsonSchema: {
+              name: "utility_bill",
+              strict: true,
+              schema: jsonSchema,
+            },
+          },
         },
-      ],
-      provider: {
-        requireParameters: true,
-      },
-      responseFormat: {
-        type: "json_schema",
-        jsonSchema: {
-          name: "utility_bill",
-          strict: true,
-          schema: jsonSchema,
-        },
-      },
-    },
-  });
+      }),
+    { label: "openrouter-ocr" },
+  );
 
   const raw = response.choices[0]?.message?.content;
   if (!raw) throw new Error("OpenRouter returned an empty response");
